@@ -78,6 +78,30 @@ pip install -r requirements.txt
            bash scripts/train/diffusion/recipes/two_dimensional/epsilon_pred_linear.sh
            ```
 
+### Dataset replication: EMNIST
+
+The image experiments use the **training split of torchvision's balanced EMNIST**.
+The repository downloads it to `data/emnist/EMNIST/`, creates a cached label index
+under `data/emnist/index/`, keeps the first 23 relabeled classes by default, resizes
+each 28x28 grayscale image to 32x32, swaps the height/width axes, and normalizes
+pixels to `[-1, 1]`. The default `p=23, N=1` setup therefore starts from 23
+classes and selects one image per class later using the classifier-confidence
+filter; the raw dataset contains 47 classes and 131,600 training examples.
+
+On uCloud, run these commands from the repository root:
+
+```bash
+bash scripts/setup_environment.sh
+source venv/bin/activate
+bash scripts/data/inspect_emnist.sh --num_classes 23 --samples_per_class 4
+```
+
+The inspection command downloads the data if it is absent and writes
+`results/data/emnist_inspection/metadata.json` and `results/data/emnist_inspection/samples.png`.
+Use `PYTHON_BIN` and `VENV_DIR` to override the Python executable or environment
+location, and `OUTPUT_DIR` to change the artifact directory. This is the
+dataset-preparation stage only; it does not start Figure 4 training.
+
 ### Analysis 1: Single Image
 - Description: Calculate the fractional variances explained (FVEs) from the layer activations, visualize them with bar charts and heatmaps, and derive the trigonometry reconstruction table for each frequency.
 - How to run
