@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../../../../.." && pwd)"
 TRAIN_DIT_SCRIPT_PATH="${ROOT_DIR}/scripts/train/diffusion/train_dit.sh"
 MAX_STEPS=10000
+CLASSIFIER_WEIGHT_PATH="${ROOT_DIR}/weights/classifier_weights_reserved/resnet/resnet_emnist_best.pt"
 
 usage() {
     cat <<'EOF'
@@ -50,6 +51,17 @@ done
 
 if [[ ! -x "${TRAIN_DIT_SCRIPT_PATH}" ]]; then
     chmod +x "${TRAIN_DIT_SCRIPT_PATH}"
+fi
+
+if [[ ! -f "${CLASSIFIER_WEIGHT_PATH}" ]]; then
+    cat >&2 <<EOF
+Missing EMNIST classifier weights:
+  ${CLASSIFIER_WEIGHT_PATH}
+
+Train the required classifier first:
+  bash scripts/classifier_models/resnet/train_resnet_classifiers.sh
+EOF
+    exit 1
 fi
 
 cd "${ROOT_DIR}"

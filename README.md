@@ -149,6 +149,37 @@ path used by the analysis scripts; the training dataset samples class images
 on demand, matching the released trainer but not materializing the full
 evaluation set during training.
 
+#### Required EMNIST classifier
+
+Before starting the Figure 4 recipe, train the ResNet18 classifier used to
+select high-confidence EMNIST images and to score generated samples. The
+classifier training script uses the repository's balanced EMNIST preprocessing
+with all 35 supported classes, a 0.80 train split, batch size 128, Adam with
+learning rate `1e-3`, cosine decay, and at most 2,000 epochs with patience-10
+early stopping:
+
+```bash
+source venv/bin/activate
+bash scripts/classifier_models/resnet/train_resnet_classifiers.sh
+```
+
+The wrapper's built-in `--dry_run` setting skips W&B but still trains the
+classifier. The expected output is:
+
+```text
+weights/classifier_weights_reserved/resnet/resnet_emnist_best.pt
+```
+
+The Figure 4 recipe now checks for this exact file before constructing the
+large XL diffusion model. The diffusion trainer currently hard-codes this
+path in `classifier_models/resnet/manage_resnet_classifiers.py`; its
+`--classifier_weights_path` argument is not used by `get_resnet_emnist()`.
+Classifier duration depends on the available GPU and early stopping, so no
+fixed wall-clock estimate is reliable from the repository. On uCloud, monitor
+its redirected log under `logs/classifier_models/resnet/` and check GPU usage
+with `nvidia-smi`. The classifier is a one-time prerequisite and can be reused
+for subsequent EMNIST diffusion runs.
+
 ### Analysis 1: Single Image
 - Description: Calculate the fractional variances explained (FVEs) from the layer activations, visualize them with bar charts and heatmaps, and derive the trigonometry reconstruction table for each frequency.
 - How to run
