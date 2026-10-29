@@ -13,4 +13,4 @@ fi
 export BATCH_SIZE="${BATCH_SIZE:-512}"
 
 echo "Using conservative MIG batch size: ${BATCH_SIZE}"
-exec "${BASE_RECIPE}" "$@"
+exec bash "${BASE_RECIPE}" "$@"
