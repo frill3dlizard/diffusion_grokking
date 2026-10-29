@@ -49,6 +49,7 @@ if __name__ == '__main__':
         parser.add_argument("--use_rope_2d", action="store_true", help="Apply rope 2d on Attention layers")
         parser.add_argument("--use_ffn_residual", action="store_true", help="Use residual connection at FFN")
         parser.add_argument("--epochs", type=int, default=1)
+        parser.add_argument("--max_steps", type=int, default=None, help="Optional hard cap on optimizer steps.")
         parser.add_argument("--batch_size", type=int, default=512)
         parser.add_argument("--timestep_sampling_type", type=str, default="normal", choices=['normal', 'uniform', 'uniform_skewed'], help="Timestep sampling distribution type for the rectified flow model")
         parser.add_argument("--sample_freq", type=int, default=1)
@@ -144,6 +145,8 @@ if __name__ == '__main__':
     curr_max_train_accuracy = -1
     curr_max_valid_accuracy = -1        
     tol = 0
+    global_step = 0
+    reached_max_steps = False
     
     # Save model_best_records
     model_best_record = []
@@ -157,6 +160,10 @@ if __name__ == '__main__':
         
         
         for i, (x_tgt, x_src, _, _, _) in enumerate(dl_train):
+            if args.max_steps is not None and global_step >= args.max_steps:
+                reached_max_steps = True
+                break
+
             x_tgt, x_src = x_tgt.cuda(), x_src.cuda()
             optimizer.zero_grad()
             
@@ -164,6 +171,7 @@ if __name__ == '__main__':
             loss.backward()
             grad_norm = clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
+            global_step += 1
 
             if not args.dry_run:
                 wandb.log({
@@ -171,7 +179,11 @@ if __name__ == '__main__':
                     "learning_rate": curr_lr,
                     "grad_norm": grad_norm.item(),
                     "epoch": epoch,
+                    "global_step": global_step,
                 })
+
+        if reached_max_steps:
+            break
 
         # Save checkpoint 
         if epoch % save_weight_freq == 0:
@@ -224,6 +236,7 @@ if __name__ == '__main__':
                     "Train Accuracy": train_accuracy,
                     "Valid Accuracy": valid_accuracy,
                     "epoch": epoch,
+                    "global_step": global_step,
                 })
             
             # Save best performing checkpoint
@@ -234,6 +247,7 @@ if __name__ == '__main__':
                     'optimizer_state_dict': optimizer.state_dict(),
                     'max_train_accuracy' : curr_max_train_accuracy,
                     'max_valid_accuracy' : curr_max_valid_accuracy,
+                    'global_step': global_step,
                 }
                 f.write(f"epoch_{epoch}-valid_accy_{valid_accuracy:.2f}\n")
                 f.flush()

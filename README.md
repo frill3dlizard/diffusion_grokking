@@ -102,6 +102,51 @@ Use `PYTHON_BIN` and `VENV_DIR` to override the Python executable or environment
 location, and `OUTPUT_DIR` to change the artifact directory. This is the
 dataset-preparation stage only; it does not start Figure 4 training.
 
+### Figure 4 replication: N=256, S=32
+
+The dedicated recipe below follows the paper's diverse-image configuration as
+closely as the released code permits: `P=23`, `N=256`, 32x32 images, one
+XL-width DiT block (`depth=1`) with the Appendix D.1 FFN sandwich, GeLU,
+2D RoPE, layer normalization, FFN residuals, x-prediction, linear noise,
+WSD learning-rate mode (`ws` in this code), `batch_size=4096`, and a 0.90
+unordered-pair train split. It fixes `max_steps=10000`; the trainer checks
+the cap before every optimizer update and writes a final checkpoint when the
+cap is reached.
+
+Validate the complete configuration without importing Python or starting a job:
+
+```bash
+bash scripts/train/diffusion/recipes/emnist/figure4_n256_s32_10000.sh --validate
+```
+
+On uCloud, after environment setup and dataset preparation, run the capped
+workflow in dry-run mode first:
+
+```bash
+source venv/bin/activate
+bash scripts/train/diffusion/recipes/emnist/figure4_n256_s32_10000.sh --dry_run
+```
+
+For the actual run, configure `.env` with `WANDB_API_KEY` and `WANDB_ENTITY`,
+then run:
+
+```bash
+source venv/bin/activate
+bash scripts/train/diffusion/recipes/emnist/figure4_n256_s32_10000.sh
+```
+
+The existing trainer writes timestamped logs under
+`logs/train/diffusion/train_dit/`, while weights and samples are placed under
+the configured `weights/` and `results/` trees. The recipe does not launch a
+long training job during setup. The 10,000-step limit is intentionally shorter
+than the paper's approximately 100,000-step runs, so it is a reproducibility
+smoke/early-training workflow rather than a claim that Figure 4's final
+accuracy will be reached. Appendix D.2's 256-image non-redundant evaluation
+pairing is implemented by the existing `Inference_All_Image_Modular_Arithmetic_Dataset`
+path used by the analysis scripts; the training dataset samples class images
+on demand, matching the released trainer but not materializing the full
+evaluation set during training.
+
 ### Analysis 1: Single Image
 - Description: Calculate the fractional variances explained (FVEs) from the layer activations, visualize them with bar charts and heatmaps, and derive the trigonometry reconstruction table for each frequency.
 - How to run
