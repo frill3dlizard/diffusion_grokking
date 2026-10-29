@@ -6,6 +6,8 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/../../../../.." && pwd)"
 TRAIN_DIT_SCRIPT_PATH="${ROOT_DIR}/scripts/train/diffusion/train_dit.sh"
 MAX_STEPS=10000
 CLASSIFIER_WEIGHT_PATH="${ROOT_DIR}/weights/classifier_weights_reserved/resnet/resnet_emnist_best.pt"
+BATCH_SIZE="${BATCH_SIZE:-4096}"
+RESUME_CHECKPOINT="${RESUME_CHECKPOINT:-}"
 
 usage() {
     cat <<'EOF'
@@ -29,7 +31,7 @@ for arg in "$@"; do
             echo "  prediction_target=x, noise_schedule=linear"
             echo "  ffn_type=gelu, use_ffn_sandwich=true"
             echo "  lr=3e-4, lr_schedule_type=ws, weight_decay=0.01"
-            echo "  batch_size=4096, sample_freq=1000, max_steps=${MAX_STEPS}"
+            echo "  batch_size=${BATCH_SIZE}, sample_freq=1000, checkpoint_freq=1000, max_steps=${MAX_STEPS}"
             echo "  timestep_sampling_type=normal, confidence_threshold=0.8"
             echo "  safeguards: max_steps is fixed to ${MAX_STEPS}"
             exit 0
@@ -84,7 +86,8 @@ args=(
     --weight_decay 0.01
     --epochs "${MAX_STEPS}"
     --max_steps "${MAX_STEPS}"
-    --batch_size 4096
+    --batch_size "${BATCH_SIZE}"
+    --checkpoint_freq 1000
     --timestep_sampling_type "normal"
     --sample_freq 1000
     --use_ffn_sandwich
@@ -92,6 +95,10 @@ args=(
     --use_rope_2d
     --use_ffn_residual
 )
+
+if [[ -n "${RESUME_CHECKPOINT}" ]]; then
+    args+=(--resume_checkpoint "${RESUME_CHECKPOINT}")
+fi
 
 if [[ "${DRY_RUN}" -eq 1 ]]; then
     args+=(--dry_run)

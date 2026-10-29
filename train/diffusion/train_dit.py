@@ -22,6 +22,13 @@ from classifier_models.manage_classifiers import get_classifier
 
 RANDOM_SEED = 46
 
+
+def save_checkpoint_atomic(checkpoint, checkpoint_path):
+    temporary_path = f"{checkpoint_path}.tmp"
+    torch.save(checkpoint, temporary_path)
+    os.replace(temporary_path, checkpoint_path)
+
+
 if __name__ == '__main__':
     def parse_args():
         parser = argparse.ArgumentParser()
@@ -50,6 +57,8 @@ if __name__ == '__main__':
         parser.add_argument("--use_ffn_residual", action="store_true", help="Use residual connection at FFN")
         parser.add_argument("--epochs", type=int, default=1)
         parser.add_argument("--max_steps", type=int, default=None, help="Optional hard cap on optimizer steps.")
+        parser.add_argument("--checkpoint_freq", type=int, default=None, help="Save a resumable checkpoint every N optimizer steps.")
+        parser.add_argument("--resume_checkpoint", type=str, default=None, help="Path to a checkpoint_step_*.pth or checkpoint_latest.pth file.")
         parser.add_argument("--batch_size", type=int, default=512)
         parser.add_argument("--timestep_sampling_type", type=str, default="normal", choices=['normal', 'uniform', 'uniform_skewed'], help="Timestep sampling distribution type for the rectified flow model")
         parser.add_argument("--sample_freq", type=int, default=1)
@@ -118,6 +127,17 @@ if __name__ == '__main__':
         start_epoch = get_checkpoint_start_epoch_and_resume(prev_weight_dir, optimizer, model, choose_final=True)
     else:
         start_epoch = 0
+
+    global_step = 0
+    if args.resume_checkpoint is not None:
+        if not os.path.isfile(args.resume_checkpoint):
+            raise FileNotFoundError(f"Resume checkpoint not found: {args.resume_checkpoint}")
+        checkpoint = torch.load(args.resume_checkpoint, weights_only=False)
+        model.load_state_dict(checkpoint["model_state_dict"])
+        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        start_epoch = checkpoint.get("epoch", 0)
+        global_step = checkpoint.get("global_step", 0)
+        print(f"Resumed checkpoint {args.resume_checkpoint} at global_step={global_step}, epoch={start_epoch}")
     
     # Needs Implementation!
     classifier = get_classifier(dataset_name=args.dataset_name, num_classes=args.p).to(device)
@@ -145,8 +165,20 @@ if __name__ == '__main__':
     curr_max_train_accuracy = -1
     curr_max_valid_accuracy = -1        
     tol = 0
-    global_step = 0
     reached_max_steps = False
+
+    if args.checkpoint_freq is not None and args.checkpoint_freq <= 0:
+        raise ValueError("--checkpoint_freq must be positive when provided")
+
+    def build_checkpoint(epoch):
+        return {
+            'epoch': epoch,
+            'global_step': global_step,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'max_train_accuracy': curr_max_train_accuracy,
+            'max_valid_accuracy': curr_max_valid_accuracy,
+        }
     
     # Save model_best_records
     model_best_record = []
@@ -172,6 +204,18 @@ if __name__ == '__main__':
             grad_norm = clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
             global_step += 1
+
+            if args.checkpoint_freq is not None and global_step % args.checkpoint_freq == 0:
+                checkpoint = build_checkpoint(epoch)
+                save_checkpoint_atomic(
+                    checkpoint,
+                    os.path.join(weight_dir, f"checkpoint_step_{global_step}.pth"),
+                )
+                save_checkpoint_atomic(
+                    checkpoint,
+                    os.path.join(weight_dir, "checkpoint_latest.pth"),
+                )
+                print(f"Saved checkpoint at global_step={global_step}")
 
             if not args.dry_run:
                 wandb.log({
@@ -241,14 +285,7 @@ if __name__ == '__main__':
             
             # Save best performing checkpoint
             if valid_accuracy > 0.8 and valid_accuracy > curr_max_valid_accuracy:
-                checkpoint = {
-                    'epoch': epoch,
-                    'model_state_dict': model.state_dict(),
-                    'optimizer_state_dict': optimizer.state_dict(),
-                    'max_train_accuracy' : curr_max_train_accuracy,
-                    'max_valid_accuracy' : curr_max_valid_accuracy,
-                    'global_step': global_step,
-                }
+                checkpoint = build_checkpoint(epoch)
                 f.write(f"epoch_{epoch}-valid_accy_{valid_accuracy:.2f}\n")
                 f.flush()
                 torch.save(checkpoint, os.path.join(weight_dir, f"model_best.pth"))        
@@ -278,13 +315,9 @@ if __name__ == '__main__':
                 tol += 1
                 if tol > 25:
                     checkpoint = {
-                        'epoch': epoch,
-                        'model_state_dict': model.state_dict(),
-                        'optimizer_state_dict': optimizer.state_dict(),
-                        'max_train_accuracy' : curr_max_train_accuracy,
-                        'max_valid_accuracy' : curr_max_valid_accuracy,
+                        **build_checkpoint(epoch),
                     }
-                    torch.save(checkpoint, os.path.join(weight_dir, f"model_final.pth"))
+                    save_checkpoint_atomic(checkpoint, os.path.join(weight_dir, "model_final.pth"))
                     f.close()
                     
                     if not args.dry_run:
@@ -296,14 +329,9 @@ if __name__ == '__main__':
         rf.model.train()
         
 
-    checkpoint = {
-        'epoch': epoch,
-        'model_state_dict': model.state_dict(),
-        'optimizer_state_dict': optimizer.state_dict(),
-        'max_train_accuracy' : curr_max_train_accuracy,
-        'max_valid_accuracy' : curr_max_valid_accuracy,
-    }
-    torch.save(checkpoint, os.path.join(weight_dir, f"model_final.pth"))   
+    checkpoint = build_checkpoint(epoch)
+    save_checkpoint_atomic(checkpoint, os.path.join(weight_dir, "model_final.pth"))
+    save_checkpoint_atomic(checkpoint, os.path.join(weight_dir, "checkpoint_latest.pth"))
     f.close()
     
     if not args.dry_run:

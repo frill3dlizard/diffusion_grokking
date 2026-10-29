@@ -110,8 +110,9 @@ XL-width DiT block (`depth=1`) with the Appendix D.1 FFN sandwich, GeLU,
 2D RoPE, layer normalization, FFN residuals, x-prediction, linear noise,
 WSD learning-rate mode (`ws` in this code), `batch_size=4096`, and a 0.90
 unordered-pair train split. It fixes `max_steps=10000`; the trainer checks
-the cap before every optimizer update and writes a final checkpoint when the
-cap is reached.
+the cap before every optimizer update, saves an atomic resumable checkpoint
+every 1,000 optimizer steps, and writes a final checkpoint when the cap is
+reached.
 
 Validate the complete configuration without importing Python or starting a job:
 
@@ -127,6 +128,14 @@ trains for up to 10,000 optimizer steps:
 ```bash
 source venv/bin/activate
 bash scripts/train/diffusion/recipes/emnist/figure4_n256_s32_10000.sh --dry_run
+```
+
+Because the observed uCloud job used an approximately 20 GB MIG slice, a
+conservative restart recipe is also provided. It uses `BATCH_SIZE=512` by
+default (override only if the slice has demonstrated enough headroom):
+
+```bash
+bash scripts/train/diffusion/recipes/emnist/figure4_n256_s32_10000_mig.sh --dry_run
 ```
 
 For the actual run, configure `.env` with `WANDB_API_KEY` and `WANDB_ENTITY`,
@@ -148,6 +157,41 @@ pairing is implemented by the existing `Inference_All_Image_Modular_Arithmetic_D
 path used by the analysis scripts; the training dataset samples class images
 on demand, matching the released trainer but not materializing the full
 evaluation set during training.
+
+Each run's weight directory contains:
+
+```text
+checkpoint_step_1000.pth
+checkpoint_step_2000.pth
+...
+checkpoint_latest.pth
+model_final.pth
+```
+
+The step checkpoints are written with a temporary file followed by an atomic
+rename, so an interrupted write does not replace the previous latest
+checkpoint. For a clean restart, leave the interrupted run directory intact for
+comparison and start a new timestamped run:
+
+```bash
+bash scripts/train/diffusion/recipes/emnist/figure4_n256_s32_10000_mig.sh --dry_run
+```
+
+To resume into a new output run from the latest saved checkpoint, set
+`RESUME_CHECKPOINT` on the base recipe. The batch-size override is kept at 512
+for the observed MIG slice:
+
+```bash
+export BATCH_SIZE=512
+export RESUME_CHECKPOINT="weights/train/diffusion/train_dit/<run>/lr_schedule_type_ws/checkpoint_latest.pth"
+bash scripts/train/diffusion/recipes/emnist/figure4_n256_s32_10000.sh --dry_run
+```
+
+`--resume_checkpoint` restores model and optimizer state plus `global_step`;
+the hard 10,000-step cap remains active. The current released trainer resumes
+at the saved epoch boundary rather than restoring an intra-epoch dataloader
+position, so a resumed run is numerically recoverable but not bit-for-bit
+identical to an uninterrupted run.
 
 #### Required EMNIST classifier
 
