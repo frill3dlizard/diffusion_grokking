@@ -120,7 +120,9 @@ bash scripts/train/diffusion/recipes/emnist/figure4_n256_s32_10000.sh --validate
 ```
 
 On uCloud, after environment setup and dataset preparation, run the capped
-workflow in dry-run mode first:
+workflow in dry-run mode first. `--dry_run` disables Weights & Biases
+initialization only; it still constructs the model, loads the dataset, and
+trains for up to 10,000 optimizer steps:
 
 ```bash
 source venv/bin/activate
