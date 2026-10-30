@@ -205,13 +205,29 @@ contains training loss only and the accuracy panel contains both curves.
 Find the run directory and plot it on uCloud:
 
 ```bash
-find weights/train/diffusion/train_dit -name metrics.jsonl -print
+METRICS=$(find weights/train/diffusion/train_dit -name metrics.jsonl \
+  -printf '%T@\t%h\n' | sort -nr | head -n1 | cut -f2-)
 bash scripts/analyses/diffusion/plot_figure4_metrics.sh \
-  weights/train/diffusion/train_dit/<run>/lr_schedule_type_ws
+  "$METRICS"
 ```
 
 The PNG is written beside the metrics file as
 `weights/train/diffusion/train_dit/<run>/lr_schedule_type_ws/figure4_metrics.png`.
+The plotting script also accepts the metrics file directly:
+
+```bash
+bash scripts/analyses/diffusion/plot_figure4_metrics.sh \
+  "$METRICS/metrics.jsonl"
+```
+
+If `METRICS` was already created with the space-delimited form
+`%T@ %h`, strip the timestamp before plotting:
+
+```bash
+METRICS=$(find weights/train/diffusion/train_dit -name metrics.jsonl \
+  -printf '%T@ %h\n' | sort -nr | head -n1 | awk '{$1=""; sub(/^ /,""); print}')
+```
+
 An optional second argument selects another output path:
 
 ```bash

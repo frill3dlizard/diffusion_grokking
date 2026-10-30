@@ -86,7 +86,7 @@ def parse_args():
     parser.add_argument(
         "--run-dir",
         required=True,
-        help="Trainer weight directory containing metrics.jsonl.",
+        help="Run directory containing metrics.jsonl, or a metrics.jsonl path.",
     )
     parser.add_argument(
         "--output",
@@ -98,9 +98,16 @@ def parse_args():
 
 def main():
     args = parse_args()
-    metrics_path = os.path.join(args.run_dir, "metrics.jsonl")
+    input_path = os.path.abspath(args.run_dir)
+    if os.path.isfile(input_path):
+        metrics_path = input_path
+        run_dir = os.path.dirname(metrics_path)
+    else:
+        run_dir = input_path
+        metrics_path = os.path.join(run_dir, "metrics.jsonl")
+
     if not os.path.isfile(metrics_path):
-        checkpoint_hint = os.path.join(args.run_dir, "checkpoint_latest.pth")
+        checkpoint_hint = os.path.join(run_dir, "checkpoint_latest.pth")
         raise FileNotFoundError(
             f"No metrics file found at {metrics_path}. "
             "This run predates local metric logging; rerun the recipe to create "
@@ -108,8 +115,8 @@ def main():
         )
 
     records = load_metrics(metrics_path)
-    output_path = args.output or os.path.join(args.run_dir, "figure4_metrics.png")
-    plot_metrics(records, output_path, f"Figure 4 metrics: {os.path.basename(args.run_dir)}")
+    output_path = args.output or os.path.join(run_dir, "figure4_metrics.png")
+    plot_metrics(records, output_path, f"Figure 4 metrics: {os.path.basename(run_dir)}")
     print(f"Loaded {len(records)} records from {metrics_path}")
     print(f"Saved plot to {output_path}")
 
