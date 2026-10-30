@@ -193,6 +193,38 @@ at the saved epoch boundary rather than restoring an intra-epoch dataloader
 position, so a resumed run is numerically recoverable but not bit-for-bit
 identical to an uninterrupted run.
 
+#### Plotting a completed Figure 4 run
+
+The trainer now writes append-only local metrics to `metrics.jsonl` in the same
+weight directory as the checkpoints. Each optimizer step records diffusion
+training loss; each `sample_freq` evaluation records training and validation
+classification accuracy. This basic Figure 4-style plot does not require W&B.
+The trainer does not calculate a validation diffusion loss, so the loss panel
+contains training loss only and the accuracy panel contains both curves.
+
+Find the run directory and plot it on uCloud:
+
+```bash
+find weights/train/diffusion/train_dit -name metrics.jsonl -print
+bash scripts/analyses/diffusion/plot_figure4_metrics.sh \
+  weights/train/diffusion/train_dit/<run>/lr_schedule_type_ws
+```
+
+The PNG is written beside the metrics file as
+`weights/train/diffusion/train_dit/<run>/lr_schedule_type_ws/figure4_metrics.png`.
+An optional second argument selects another output path:
+
+```bash
+bash scripts/analyses/diffusion/plot_figure4_metrics.sh \
+  weights/train/diffusion/train_dit/<run>/lr_schedule_type_ws \
+  results/figure4_metrics.png
+```
+
+Runs completed before local JSONL logging was added do not contain the
+per-step metrics required for these curves. Their checkpoints remain usable
+for model analysis, but the Figure 4 plot requires rerunning the recipe
+(`--dry_run` is sufficient and does not use W&B) to populate `metrics.jsonl`.
+
 #### Required EMNIST classifier
 
 Before starting the Figure 4 recipe, train the ResNet18 classifier used to

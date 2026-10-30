@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 from datetime import datetime as dt
 import wandb
@@ -184,6 +185,13 @@ if __name__ == '__main__':
     model_best_record = []
     model_best_record_file_path = os.path.join(weight_dir, f"model_best_record.txt")
     f = open(model_best_record_file_path, "w", encoding="utf-8")
+    metrics_file_path = os.path.join(weight_dir, "metrics.jsonl")
+    metrics_file = open(metrics_file_path, "a", encoding="utf-8")
+
+    def write_metric(record):
+        metrics_file.write(json.dumps(record) + "\n")
+        metrics_file.flush()
+
     for epoch in tqdm(range(start_epoch, start_epoch + args.epochs)):        
         # Learning Rate Schedule setting
         # curr_lr = get_lr_schedule(epoch, start_epoch + num_epochs, scaled_lr, warm_up=True)
@@ -204,6 +212,14 @@ if __name__ == '__main__':
             grad_norm = clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
             global_step += 1
+            write_metric({
+                "type": "train",
+                "epoch": epoch,
+                "global_step": global_step,
+                "train_loss": loss.item(),
+                "learning_rate": curr_lr,
+                "grad_norm": grad_norm.item(),
+            })
 
             if args.checkpoint_freq is not None and global_step % args.checkpoint_freq == 0:
                 checkpoint = build_checkpoint(epoch)
@@ -275,6 +291,13 @@ if __name__ == '__main__':
             valid_accuracy = (preds == label_tgt).mean()
         
             # Report on wandb
+            write_metric({
+                "type": "eval",
+                "epoch": epoch,
+                "global_step": global_step,
+                "train_accuracy": train_accuracy,
+                "valid_accuracy": valid_accuracy,
+            })
             if not args.dry_run:
                 wandb.log({
                     "Train Accuracy": train_accuracy,
@@ -322,6 +345,7 @@ if __name__ == '__main__':
                     
                     if not args.dry_run:
                         wandb.finish()
+                    metrics_file.close()
                     exit()
             else:
                 tol = 0
@@ -333,6 +357,7 @@ if __name__ == '__main__':
     save_checkpoint_atomic(checkpoint, os.path.join(weight_dir, "model_final.pth"))
     save_checkpoint_atomic(checkpoint, os.path.join(weight_dir, "checkpoint_latest.pth"))
     f.close()
+    metrics_file.close()
     
     if not args.dry_run:
         wandb.finish()
