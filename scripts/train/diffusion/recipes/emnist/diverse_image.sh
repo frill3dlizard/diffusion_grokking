@@ -20,8 +20,9 @@ fi
     --noise_schedule "linear" \
     --depth 1 \
     --ffn_type "gelu" \
-    --lr 3e-4 \
-    --lr_schedule_type "ws" \
+    --lr 5e-4 \
+    --lr_schedule_type "wsd" \
+    --loss_weighting "none" \
     --weight_decay 0.01 \
     --epochs 300000 \
     --batch_size 4096 \

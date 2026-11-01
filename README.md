@@ -205,13 +205,29 @@ contains training loss only and the accuracy panel contains both curves.
 Find the run directory and plot it on uCloud:
 
 ```bash
-find weights/train/diffusion/train_dit -name metrics.jsonl -print
+METRICS=$(find weights/train/diffusion/train_dit -name metrics.jsonl \
+  -printf '%T@\t%h\n' | sort -nr | head -n1 | cut -f2-)
 bash scripts/analyses/diffusion/plot_figure4_metrics.sh \
-  weights/train/diffusion/train_dit/<run>/lr_schedule_type_ws
+  "$METRICS"
 ```
 
 The PNG is written beside the metrics file as
 `weights/train/diffusion/train_dit/<run>/lr_schedule_type_ws/figure4_metrics.png`.
+The plotting script also accepts the metrics file directly:
+
+```bash
+bash scripts/analyses/diffusion/plot_figure4_metrics.sh \
+  "$METRICS/metrics.jsonl"
+```
+
+If `METRICS` was already created with the space-delimited form
+`%T@ %h`, strip the timestamp before plotting:
+
+```bash
+METRICS=$(find weights/train/diffusion/train_dit -name metrics.jsonl \
+  -printf '%T@ %h\n' | sort -nr | head -n1 | awk '{$1=""; sub(/^ /,""); print}')
+```
+
 An optional second argument selects another output path:
 
 ```bash
@@ -224,6 +240,50 @@ Runs completed before local JSONL logging was added do not contain the
 per-step metrics required for these curves. Their checkpoints remain usable
 for model analysis, but the Figure 4 plot requires rerunning the recipe
 (`--dry_run` is sufficient and does not use W&B) to populate `metrics.jsonl`.
+
+#### Auditing unexpectedly high validation accuracy
+
+The trainer's periodic `Valid Accuracy` value is a lightweight smoke metric:
+it samples only the first 32 examples from `dl_valid`. It is not the paper's
+Appendix D.2/D.3 evaluation, which uses non-redundant image pairings:
+`(256 / 23) * 23^2 = 5,819` samples for `P=23`. The train and validation
+unordered operand groups are disjoint, and the image pool is intentionally
+shared between them so that validation tests arithmetic generalization rather
+than unseen visual classes.
+
+The original researcher recipe selected `lr_schedule_type=ws` and `3e-4` in
+the released shell file, while the published N=256 HF checkpoint path is
+labelled `lr_0.0005-lr_schedule_type_ws/.../lr_schedule_type_d`. The paper
+describes WSD, so the corrected Figure 4 recipe uses base LR `5e-4` and
+`wsd`. The current RF implementation also previously multiplied each
+per-example CFM loss by `t`; the paper's Appendix A objective is unweighted,
+so the corrected recipe explicitly uses `--loss_weighting none`. For a
+deterministic configuration audit without model loading or training:
+
+```bash
+python scripts/diagnostics/figure4_audit.py --total-steps 100000 --batch-size 4096 \
+  --lr 3e-4 --paper-lr 5e-4
+```
+
+This prints pair-split overlap, quick-versus-full evaluation sizes, expected
+XL parameterization, the EMNIST class-label fidelity gap, and actual LR values
+for `ws` versus `wsd`.
+
+The published `hozy-Joon/mechanistic_diffusion` artifact provides an additional
+anchor: its N=256 path is labelled `lr_0.0005` and contains an initial
+`lr_schedule_type_ws` directory followed by `lr_schedule_type_d`. Its
+`model_best_record.txt` reports validation milestones at epochs 305000,
+310000, 350000, 560000, 630000, 715000, and 730000. Therefore an existing
+100,000-step run using `3e-4`, `ws`, and the old `t`-weighted objective is a
+useful local experiment but is not an exact reproduction of that released
+checkpoint or of the paper's stated WSD/unweighted objective.
+
+The current EMNIST preprocessing selects the first 23 relabeled classes:
+digits `0`-`9` followed by letters `A`-`M`. The paper text describes uppercase
+`A`-`W`. Because the classifier is trained with the repository's existing
+35-class relabeling, silently changing this mapping would invalidate the
+confidence filter; the corrected recipe therefore reports this as an explicit
+fidelity gap rather than applying an unverified remap.
 
 #### Required EMNIST classifier
 
