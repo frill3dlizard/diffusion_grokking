@@ -47,6 +47,7 @@ if __name__ == '__main__':
         parser.add_argument("--model_size", type=str, default="S", help="S, M, L, XL")
         parser.add_argument("--prediction_target", type=str, choices=["x", "v", "epsilon"], help="DiT's prediction target provided to RF")
         parser.add_argument("--noise_schedule", type=str, default="linear", help="RF noise schedule")
+        parser.add_argument("--loss_weighting", type=str, default="t", choices=["t", "none"], help="Weight per-example RF loss by t, or use unweighted CFM loss.")
         parser.add_argument("--depth", type=int, default=10)
         parser.add_argument("--ffn_type", type=str, default="gelu", choices=["swiglu", "gelu"], help="Choose FFN type : swiglu, gelu")
         parser.add_argument("--use_ffn_sandwich", action="store_true", help="Use prepending ffn to self-attention")
@@ -119,7 +120,8 @@ if __name__ == '__main__':
         model, 
         timestep_sampling_type=args.timestep_sampling_type, 
         prediction_target=args.prediction_target, 
-        noise_schedule=args.noise_schedule
+        noise_schedule=args.noise_schedule,
+        loss_weighting=args.loss_weighting,
     )
     optimizer = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
         

@@ -3,12 +3,21 @@ import math
 
 
 class RF:
-    def __init__(self, model, timestep_sampling_type="normal", prediction_target='x', noise_schedule='linear', radius=1.0):
+    def __init__(
+        self,
+        model,
+        timestep_sampling_type="normal",
+        prediction_target='x',
+        noise_schedule='linear',
+        radius=1.0,
+        loss_weighting="t",
+    ):
         self.model = model
         self.timestep_sampling_type = timestep_sampling_type
         self.prediction_target = prediction_target  # 'x', 'v', 'epsilon'
         self.noise_schedule = noise_schedule        # 'linear', 'vp' (cosine), 've' (VE)
         self.radius = radius
+        self.loss_weighting = loss_weighting
 
     def forward(self, x, cond):
         b = x.size(0)
@@ -40,7 +49,12 @@ class RF:
         v_pred = self.convert_pred_to_v_pred(zt, pred, t_expanded)
         
         loss_unreduced = ((target_v - v_pred) ** 2).mean(dim=list(range(1, len(x.shape))))
-        loss = (loss_unreduced * t).mean()  
+        if self.loss_weighting == "t":
+            loss = (loss_unreduced * t).mean()
+        elif self.loss_weighting == "none":
+            loss = loss_unreduced.mean()
+        else:
+            raise ValueError(f"Unexpected loss_weighting: {self.loss_weighting}")
         
         return loss
     
@@ -150,6 +164,5 @@ class RF:
             images.append(z)
             
         return images
-
 
 

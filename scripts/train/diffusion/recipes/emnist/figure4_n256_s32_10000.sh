@@ -30,7 +30,7 @@ for arg in "$@"; do
             echo "  image_size=32, patch_size=32, model_size=XL, depth=1"
             echo "  prediction_target=x, noise_schedule=linear"
             echo "  ffn_type=gelu, use_ffn_sandwich=true"
-            echo "  lr=3e-4, lr_schedule_type=ws, weight_decay=0.01"
+            echo "  lr=5e-4, lr_schedule_type=wsd, loss_weighting=none, weight_decay=0.01"
             echo "  batch_size=${BATCH_SIZE}, sample_freq=1000, checkpoint_freq=1000, max_steps=${MAX_STEPS}"
             echo "  timestep_sampling_type=normal, confidence_threshold=0.8"
             echo "  safeguards: max_steps is fixed to ${MAX_STEPS}"
@@ -81,8 +81,9 @@ args=(
     --noise_schedule "linear"
     --depth 1
     --ffn_type "gelu"
-    --lr 3e-4
-    --lr_schedule_type "ws"
+    --lr 5e-4
+    --lr_schedule_type "wsd"
+    --loss_weighting "none"
     --weight_decay 0.01
     --epochs "${MAX_STEPS}"
     --max_steps "${MAX_STEPS}"
