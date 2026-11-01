@@ -4,11 +4,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../../../../.." && pwd)"
 TRAIN_DIT_SCRIPT_PATH="${ROOT_DIR}/scripts/train/diffusion/train_dit.sh"
-MAX_STEPS=10000
+MAX_STEPS=100000
 CLASSIFIER_WEIGHT_PATH="${ROOT_DIR}/weights/classifier_weights_reserved/resnet/resnet_emnist_best.pt"
 BATCH_SIZE="${BATCH_SIZE:-4096}"
 RESUME_CHECKPOINT="${RESUME_CHECKPOINT:-}"
-
+    
 usage() {
     cat <<'EOF'
 Usage:
